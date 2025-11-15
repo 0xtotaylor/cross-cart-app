@@ -58,8 +58,9 @@ export function ProductDiscoveryStep({
                     src={product.imageUrl}
                     alt={product.name}
                     fill
-                    className="object-cover"
+                    className="pointer-events-none object-cover"
                     sizes="288px"
+                    draggable={false}
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
