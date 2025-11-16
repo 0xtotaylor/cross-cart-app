@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { AppDock } from '@/components/dock'
 import { Transactions } from '@/components/transcactions'
@@ -114,6 +114,17 @@ export function Content({
     },
     [totalQueuedItems],
   )
+
+  useEffect(() => {
+    if (activeScreen === 'wardrobe') {
+      const timeoutId = setTimeout(() => {
+        if (wardrobeRef.current) {
+          wardrobeRef.current.goToWardrobeStep()
+        }
+      }, 0)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [activeScreen])
 
   const handleFinalizeWardrobe = useCallback(() => {
     if (totalQueuedItems === 0) {

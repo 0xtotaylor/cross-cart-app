@@ -58,6 +58,7 @@ export type WardrobeHandle = {
   }) => string
   generateOutfit: () => Promise<string>
   purchaseEquipped: () => Promise<string>
+  goToWardrobeStep: () => void
 }
 
 const equipmentSlots = {
@@ -198,7 +199,13 @@ const productMatchesSlot = (product: ProductSummary, slotId: SlotId) => {
   const keywords = slotKeywordMap[slotId] ?? []
   if (!keywords.length) return false
   const haystack = buildProductSearchText(product)
-  return keywords.some((keyword) => haystack.includes(keyword))
+  return keywords.some((keyword) => {
+    const regex = new RegExp(
+      `\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+      'i',
+    )
+    return regex.test(haystack)
+  })
 }
 
 const SLOT_LABELS: Record<SlotId, string> = {
@@ -258,6 +265,7 @@ export const Wardrobe = forwardRef<WardrobeHandle, WardrobeProps>(
     const [outfitError, setOutfitError] = useState<string | null>(null)
     const [isAgentRunning, setIsAgentRunning] = useState(false)
     const portraitInputRef = useRef<HTMLInputElement | null>(null)
+    const hasAttemptedAutoPortrait = useRef(false)
 
     useEffect(() => {
       setProductDeck(initialProducts)
@@ -528,10 +536,83 @@ export const Wardrobe = forwardRef<WardrobeHandle, WardrobeProps>(
       [],
     )
 
-    const openPortraitPicker = useCallback(() => {
-      if (isPortraitUploading) return
-      portraitInputRef.current?.click()
+    const loadTommyPortrait = useCallback(async () => {
+      if (isPortraitUploading) return false
+
+      setIsPortraitUploading(true)
+      setPortraitError(null)
+
+      try {
+        const imageResponse = await fetch('/tommy.png')
+        if (!imageResponse.ok) {
+          return false
+        }
+
+        const blob = await imageResponse.blob()
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onerror = () => {
+            reject(
+              reader.error ??
+                new Error('Failed to read tommy.png for preview.'),
+            )
+          }
+          reader.onloadend = () => {
+            if (typeof reader.result === 'string') {
+              resolve(reader.result)
+            } else {
+              reject(new Error('Unexpected data from tommy.png'))
+            }
+          }
+          reader.readAsDataURL(blob)
+        })
+
+        setPortraitPreviewUrl((old) => {
+          if (old && old.startsWith('blob:')) URL.revokeObjectURL(old)
+          return dataUrl
+        })
+        setGeneratedOutfitUrl(null)
+        setOutfitError(null)
+        return true
+      } catch (error) {
+        if (error instanceof TypeError) {
+          return false
+        }
+        setPortraitError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to load tommy.png. Please try uploading manually.',
+        )
+        return false
+      } finally {
+        setIsPortraitUploading(false)
+      }
     }, [isPortraitUploading])
+
+    const openPortraitPicker = useCallback(async () => {
+      if (isPortraitUploading) return
+
+      // First try to load tommy.png
+      const loaded = await loadTommyPortrait()
+      if (loaded) {
+        return
+      }
+
+      // If tommy.png doesn't exist, open the file picker
+      portraitInputRef.current?.click()
+    }, [isPortraitUploading, loadTommyPortrait])
+
+    useEffect(() => {
+      if (activeStep !== 'wardrobe') {
+        hasAttemptedAutoPortrait.current = false
+        return
+      }
+      if (portraitPreviewUrl || hasAttemptedAutoPortrait.current) {
+        return
+      }
+      hasAttemptedAutoPortrait.current = true
+      void loadTommyPortrait()
+    }, [activeStep, portraitPreviewUrl, loadTommyPortrait])
 
     const handleRunAgent = useCallback(async () => {
       if (isAgentRunning) {
@@ -633,8 +714,14 @@ export const Wardrobe = forwardRef<WardrobeHandle, WardrobeProps>(
         equipProduct: handleVoiceEquipProduct,
         generateOutfit: handleGenerateOutfit,
         purchaseEquipped: handleRunAgent,
+        goToWardrobeStep,
       }),
-      [handleVoiceEquipProduct, handleGenerateOutfit, handleRunAgent],
+      [
+        handleVoiceEquipProduct,
+        handleGenerateOutfit,
+        handleRunAgent,
+        goToWardrobeStep,
+      ],
     )
 
     const renderEquipmentSlotButton = (
