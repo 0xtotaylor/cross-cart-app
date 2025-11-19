@@ -499,9 +499,9 @@ export const runAgent = async (items: SelectedWardrobeItem[]) => {
     })) {
       if (message.type === 'system' && message.subtype === 'init') {
         const mcpServersInfo = message.mcp_servers
-        mcpStatus = mcpServersInfo?.find(
-          (s: { name: string }) => s.name === 'locus',
-        ) ?? null
+        mcpStatus =
+          mcpServersInfo?.find((s: { name: string }) => s.name === 'locus') ??
+          null
         if (mcpStatus?.status === 'connected') {
           console.log(`✓ Connected to Locus MCP server\n`)
         } else {
